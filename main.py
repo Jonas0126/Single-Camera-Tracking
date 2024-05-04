@@ -37,7 +37,9 @@ if __name__ == '__main__':
     parser.add_argument('--width', '-w', type=int, default=256)
     parser.add_argument('--buffer_size', type=int, default=1)
     parser.add_argument('--visualize', '-v', type=str, default=False, help='Set to "True" to enable visualization of tracking results.')
-    
+    parser.add_argument('--threshold', type=float)
+    parser.add_argument('--lambda_value', type=float)
+
     args = parser.parse_args()
 
 
@@ -78,7 +80,9 @@ if __name__ == '__main__':
 
         # Initialize Cropper and Matcher
         cropper = Cropper(args.width)
-        matcher = Matcher(threshold=0.5, buffer_size=1)
+
+        #basic threshold = 0.5
+        matcher = Matcher(threshold=args.threshold, buffer_size=args.buffer_size, lambda_value=args.lambda_value)
         palette = Palette()
 
         # Perform object tracking for each frame
@@ -90,7 +94,10 @@ if __name__ == '__main__':
                 info_list_norm = []
                 
                 # Open a text file to record the label of each frame
-                f = open(f'{args.out}/{cam}_{frame_id:05}.txt', 'w')
+                out = os.path.join(args.out, f'{cam}')
+                if not os.path.exists(out):
+                    os.mkdir(out)
+                f = open(f'{out}/{cam}_{frame_id:05}.txt', 'w')
 
                 # Crop objects from the current frame
                 current_objects, info_list, info_list_norm = cropper.crop_frame(image_path=imgs[i], label_path=labels[i])
@@ -100,10 +107,15 @@ if __name__ == '__main__':
                     img = transform(current_objects[j])
                     
                     _, feature, _ = extracter(torch.unsqueeze(img,0))
-                    object_embeddings.append(torch.squeeze(feature))
+                    object_embeddings.append(torch.squeeze(feature).numpy())
+
+                #embedding normalization
+                if object_embeddings:
+                    embedding_norm = np.linalg.norm(np.array(object_embeddings), axis=1, keepdims=True)
+                    object_embeddings = np.array(object_embeddings) / embedding_norm
 
                 # Match object embeddings to previous frames
-                id_list =  matcher.match(object_embeddings, info_list)
+                id_list =  matcher.match(np.array(object_embeddings), info_list)
 
                 # Record coordinates and IDs to the output file
                 for n in range(len(info_list)):
