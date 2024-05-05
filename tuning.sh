@@ -1,7 +1,7 @@
 
-buffer_size=(1 2 4 6 8)
-threshold=(0.5 0.4 0.3 0.2 0.1)
-lambda=(0.3 0.5 0.75 0.8)
+buffer_size=(10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25)
+threshold=(0.5)
+lambda=(0.8)
 
 for ((i=0; i < ${#buffer_size[@]}; i++))
 do

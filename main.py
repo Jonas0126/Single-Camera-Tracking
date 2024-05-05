@@ -35,10 +35,10 @@ if __name__ == '__main__':
     parser.add_argument('--model', '-m', type=str, default='resnet101_ibn_a', help='the name of the pre-trained PyTorch model')
     parser.add_argument('--out', type=str, help='Directory to save the output video.')
     parser.add_argument('--width', '-w', type=int, default=256)
-    parser.add_argument('--buffer_size', type=int, default=1)
+    parser.add_argument('--buffer_size', type=int, default=1, help='size limit of the object buffer.')
     parser.add_argument('--visualize', '-v', type=str, default=False, help='Set to "True" to enable visualization of tracking results.')
-    parser.add_argument('--threshold', type=float)
-    parser.add_argument('--lambda_value', type=float)
+    parser.add_argument('--threshold', type=float, help='Set the threshold for tracking objects.')
+    parser.add_argument('--lambda_value', type=float, help='Set the lambda value for re-ranking.')
 
     args = parser.parse_args()
 
