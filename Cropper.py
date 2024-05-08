@@ -32,8 +32,8 @@ class Cropper():
         y_center = y_center_norm * H
         w = int(w_norm * W)
         h = int(h_norm * H)
-        left = int(x_center - (w/2))
-        top =  int(y_center - (h/2))
+        left = int(x_center - (w / 2))
+        top =  int(y_center - (h / 2))
         
         return left, top, w, h
 
@@ -71,8 +71,8 @@ class Cropper():
 
         Returns:
         - cropped_regions (tensor): Cropped regions of interest.
-        - info_list (list): List containing bounding box coordinates for each cropped region.
-        - info_list_norm (list): List containing normalized bounding box coordinates for each cropped region.
+        - info_list (list): List containing bounding box coordinates (in (top left x, top left y, bottom x, bottom y) format) for each cropped region.
+        - info_list_norm (list): List containing normalized bounding box (in (top left x, top left y, bottom x, bottom y) format, where the value of coords are normalized between [0, 1]) coordinates for each cropped region.
         """
 
         image = read_image(image_path)
@@ -80,26 +80,24 @@ class Cropper():
         W = image.shape[2]
 
         #get bounding box info
-        label = open(label_path, 'r')
-        info_list = []
-        info_list_norm = []
-        info = label.readline()
+        with open(label_path, 'r') as label:
+            info_list = []
+            info_list_norm = []
 
-        cropped_regions = torch.empty((0, 3, self.img_width, self.img_width))
-        
-        while info:
-            info = info.split(' ')
-            x_center_norm, y_center_norm, w_norm, h_norm = self.get_image_info(info)
-            left, top, w, h = self.convert(W, H, x_center_norm, y_center_norm, w_norm, h_norm)
-            info_list.append([left, top, left+w, top+h])
-            info_list_norm.append([x_center_norm, y_center_norm, w_norm, h_norm])
-            # Crop the image region based on the bounding box coordinates
-            croped_img = (F.crop(image, top, left, h, w))/255
-            transform = transforms.Compose([
-                transforms.Resize((self.img_width, self.img_width))
-            ])
-            croped_img = transform(croped_img)
-            cropped_regions = torch.cat((cropped_regions, torch.unsqueeze(croped_img, 0)))
-            info = label.readline()
-        
+            cropped_regions = torch.empty((0, 3, self.img_width, self.img_width))
+            
+            for info in label:
+                info = info.split(' ')
+                x_center_norm, y_center_norm, w_norm, h_norm = self.get_image_info(info)
+                left, top, w, h = self.convert(W, H, x_center_norm, y_center_norm, w_norm, h_norm)
+                info_list.append([left, top, left + w, top + h])
+                info_list_norm.append([x_center_norm, y_center_norm, w_norm, h_norm])
+                # Crop the image region based on the bounding box coordinates
+                croped_img = (F.crop(image, top, left, h, w)) / 255
+                transform = transforms.Compose([
+                    transforms.Resize((self.img_width, self.img_width))
+                ])
+                croped_img = transform(croped_img)
+                cropped_regions = torch.cat((cropped_regions, torch.unsqueeze(croped_img, 0)))
+
         return cropped_regions, info_list, info_list_norm

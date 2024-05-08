@@ -34,11 +34,14 @@ if __name__ == '__main__':
     parser.add_argument('--label_dir', '-l', type=str, help='Directory containing labels for input frames.')
     parser.add_argument('--model', '-m', type=str, default='resnet101_ibn_a', help='the name of the pre-trained PyTorch model')
     parser.add_argument('--out', type=str, help='Directory to save the output video.')
-    parser.add_argument('--width', '-w', type=int, default=256)
+    parser.add_argument('--width', '-w', type=int, default=224)
     parser.add_argument('--buffer_size', type=int, default=1, help='size limit of the object buffer.')
-    parser.add_argument('--visualize', '-v', type=str, default=False, help='Set to "True" to enable visualization of tracking results.')
+    parser.add_argument('--visualize', '-v', action='store_true', help='use "-v" to visualize')
     parser.add_argument('--threshold', type=float, help='Set the threshold for tracking objects.')
     parser.add_argument('--lambda_value', type=float, help='Set the lambda value for re-ranking.')
+    parser.add_argument('--device', type=str, default='cpu')
+    parser.add_argument('--name', type=str, help='prefix of the saved videos')
+
 
     args = parser.parse_args()
 
@@ -52,7 +55,7 @@ if __name__ == '__main__':
 
     # Load the pre-trained model for feature extraction
     extracter = torch.hub.load('b06b01073/veri776-pretrain', args.model, fine_tuned=True) # 將 fine_tuned 設為 True 會 load fine-tuned 後的 model
-    extracter = extracter.to('cpu')
+    extracter = extracter.to(args.device)
     extracter.eval()
 
     # Normalize image pixels before feeding them to the model
@@ -74,7 +77,12 @@ if __name__ == '__main__':
 
         # Create video writer if visualization is enabled
         if args.visualize:
-            save_path = os.path.join(f'{args.out}', f'video/{args.name}_cam{cam}.mp4')
+            video_dir = os.path.join(f'{args.out}', 'video')
+
+            if not os.path.exists(video_dir):
+                os.makedirs(video_dir)
+
+            save_path = os.path.join(video_dir, f'{args.name}_cam{cam}.mp4')
             fourcc = cv2.VideoWriter_fourcc(*'mp4v') 
             out = cv2.VideoWriter(save_path, fourcc, 2, (1280,  720)) 
 
@@ -94,43 +102,44 @@ if __name__ == '__main__':
                 info_list_norm = []
                 
                 # Open a text file to record the label of each frame
-                out = os.path.join(args.out, f'{cam}')
-                if not os.path.exists(out):
-                    os.mkdir(out)
-                f = open(f'{out}/{cam}_{frame_id:05}.txt', 'w')
+                text_output_path = os.path.join(args.out, f'{cam}')  
+                if not os.path.exists(text_output_path):
+                    os.mkdir(text_output_path)
 
-                # Crop objects from the current frame
-                current_objects, info_list, info_list_norm = cropper.crop_frame(image_path=imgs[i], label_path=labels[i])
+                with open(os.path.join(text_output_path, f'{cam}_{frame_id:05}.txt'), 'w') as f:
 
-                # Extract features for each cropped object
-                for j in range(len(current_objects)):
-                    img = transform(current_objects[j])
-                    
-                    _, feature, _ = extracter(torch.unsqueeze(img,0))
-                    object_embeddings.append(torch.squeeze(feature).numpy())
+                    # Crop objects from the current frame
+                    current_objects, info_list, info_list_norm = cropper.crop_frame(image_path=imgs[i], label_path=labels[i])
 
-                #embedding normalization
-                if object_embeddings:
-                    embedding_norm = np.linalg.norm(np.array(object_embeddings), axis=1, keepdims=True)
-                    object_embeddings = np.array(object_embeddings) / embedding_norm
+                    # Extract features for each cropped object
+                    for j in range(len(current_objects)):
+                        img = transform(current_objects[j]).to(args.device)
+                        
+                        _, feature, _ = extracter(torch.unsqueeze(img, 0))
+                        object_embeddings.append(torch.squeeze(feature).cpu().numpy())
 
-                # Match object embeddings to previous frames
-                id_list =  matcher.match(np.array(object_embeddings), info_list)
+                    #embedding normalization
+                    if object_embeddings:
+                        embedding_norm = np.linalg.norm(np.array(object_embeddings), axis=1, keepdims=True)
+                        object_embeddings = np.array(object_embeddings) / embedding_norm
 
-                # Record coordinates and IDs to the output file
-                for n in range(len(info_list)):
-                    f.write(f'{cam} {info_list_norm[n][0]} {info_list_norm[n][1]} {info_list_norm[n][2]} {info_list_norm[n][3]} {id_list[n]}\n')
-                frame_id += 1
+                    # Match object embeddings to previous frames
+                    id_list =  matcher.match(np.array(object_embeddings), info_list)
 
-                # Draw bounding boxes if visualization is enabled
-                if args.visualize:
-                    image = cv2.imread(imgs[i])
+                    # Record coordinates and IDs to the output file
                     for n in range(len(info_list)):
-                        color = palette.get_color(id_list[n])
-                        cv2.rectangle(image, (info_list[n][0], info_list[n][1]), (info_list[n][2], info_list[n][3]), color, 2)
-                        cv2.putText(image, text=str(id_list[n]), org=(info_list[n][0], info_list[n][1] - 5), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=2, color=color, thickness=3)
+                        f.write(f'{cam} {info_list_norm[n][0]} {info_list_norm[n][1]} {info_list_norm[n][2]} {info_list_norm[n][3]} {id_list[n]}\n')
+                    frame_id += 1
 
-                    out.write(image)
+                    # Draw bounding boxes if visualization is enabled
+                    if args.visualize:
+                        image = cv2.imread(imgs[i])
+                        for n in range(len(info_list)):
+                            color = palette.get_color(id_list[n])
+                            cv2.rectangle(image, (info_list[n][0], info_list[n][1]), (info_list[n][2], info_list[n][3]), color, 2)
+                            cv2.putText(image, text=str(id_list[n]), org=(info_list[n][0], info_list[n][1] - 5), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=2, color=color, thickness=3)
+
+                        out.write(image)
 
         # Release video writer if visualization is enabled
         if args.visualize:

@@ -84,8 +84,8 @@ class Matcher():
                         
                         if matched == 1:
                             id_list[row] = self.object_buffer[col][2]
-                            dist_matrix[row,:] = -2
-                            dist_matrix[:,col] = -2
+                            dist_matrix[row, :] = -2
+                            dist_matrix[:, col] = -2
                         else:
                             dist_matrix[row][col] = -2
                             _ -= 1
@@ -165,7 +165,7 @@ class Matcher():
 
 
     
-    def re_ranking(self, q_q_dist, q_g_dist, g_g_dist, lambda_value=0.3):
+    def re_ranking(self, q_q_dist, q_g_dist, g_g_dist, lambda_value=0.3, k=6):
         """
         Re-rank the distance matrix using k-reciprocal nearest neighbors.
 
@@ -179,9 +179,6 @@ class Matcher():
         - final_dist (np.array): Re-ranked distance matrix
         """
 
-        # Set the default value of k
-        k = 6
-
         # Concatenate distance matrices to form the initial distance matrix
         dist_matrix = np.concatenate(
             [np.concatenate([q_q_dist, q_g_dist], axis=1),
@@ -192,19 +189,19 @@ class Matcher():
         dist_matrix = 2 - 2 * dist_matrix
 
         # Normalize the distance matrix
-        dist_matrix = np.transpose(1. * dist_matrix/np.max(dist_matrix, axis = 0))
+        dist_matrix = np.transpose(1. * dist_matrix / np.max(dist_matrix, axis=0))
         
         # Adjust k if the number of objects is less than k+1
-        if len(dist_matrix) < k+1:
-            k = len(dist_matrix)-1
+        if len(dist_matrix) < k + 1:
+            k = len(dist_matrix) - 1
         
         # Initialize variables for k-reciprocal neighbors
         k2 = 1
         if k >= 2:
-            k2 = k//2
+            k2 = k // 2
 
         # Compute the initial rank based on the distance matrix
-        initial_rank = np.argpartition(dist_matrix, range(1,k+1))
+        initial_rank = np.argpartition(dist_matrix, range(1, k + 1))
         
         # Initialize the initial vector V
         V = np.zeros_like(dist_matrix).astype(np.float32)
@@ -296,7 +293,7 @@ class Matcher():
         """
 
         y_len = len(self.object_buffer)
-        x_len= len(object_embeddings)
+        x_len = len(object_embeddings)
         dist_matrix = torch.empty((x_len, y_len))
         for i in range(x_len):
             for j in range(y_len):    
@@ -315,8 +312,8 @@ class Matcher():
         - new_id (int): New ID for the unmatched object
         """
         
-        self.id+=1
-        return self.id-1
+        self.id += 1
+        return self.id - 1
 
 
     def rule_1(self, x_motion, y_motion, x_offset, y_offset):   
